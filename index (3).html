@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Conversor de hora mundial</title>
+<style>
+:root{
+  --bg:#e9efee; --panel:#12303a; --panel-ink:#eaf4f2; --card:#ffffff; --ink:#12303a;
+  --muted:#5b747b; --line:#cfdcda; --accent:#2b4bdb; --accent-ink:#ffffff; --field:#f6faf9;
+  --field-line:#8aa3a8; --danger:#b3261e;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0c1a1f; --panel:#173540; --panel-ink:#eaf4f2; --card:#13262d; --ink:#e6f1ef;
+    --muted:#93acb2; --line:#254650; --accent:#7f97ff; --accent-ink:#0c1a1f; --field:#0f2027;
+    --field-line:#4d7580; --danger:#ff8a80;
+  }
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  background:var(--bg); color:var(--ink);
+  font-family:"Segoe UI",system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif;
+  line-height:1.4; min-height:100vh;
+}
+.wrap{max-width:1080px; margin:0 auto; padding:20px 16px 48px}
+
+/* Bloque superior */
+.top{
+  background:var(--panel); color:var(--panel-ink);
+  border-radius:14px; padding:22px 24px;
+  display:flex; flex-wrap:wrap; gap:18px 28px; align-items:flex-end;
+}
+.top h1{font-size:1.1rem; font-weight:600; margin:0; width:100%}
+.field{display:flex; flex-direction:column; gap:6px}
+.field > span{font-size:.85rem; opacity:.8}
+select,input[type=search]{
+  font:inherit; color:var(--ink); background:var(--field);
+  border:1.5px solid var(--field-line); border-radius:8px; padding:9px 12px;
+}
+select:focus-visible,input:focus-visible,button:focus-visible{outline:3px solid var(--accent); outline-offset:2px}
+.top select{min-width:130px}
+.time-pick{display:flex; align-items:center; gap:6px}
+.time-pick b{font-size:1.4rem}
+.time-pick select{min-width:72px; font-size:1.25rem; font-variant-numeric:tabular-nums}
+.btn{
+  font:inherit; cursor:pointer; border:0; border-radius:8px; padding:10px 16px;
+  background:var(--accent); color:var(--accent-ink); font-weight:600;
+}
+.btn.ghost{background:transparent; color:var(--panel-ink); border:1.5px solid rgba(234,244,242,.5)}
+
+/* Buscador */
+.adder{margin:26px 0 14px; display:flex; flex-wrap:wrap; gap:10px 16px; align-items:center}
+.search{position:relative; flex:1 1 320px; max-width:460px}
+.search input{width:100%; padding:11px 14px}
+.results{
+  position:absolute; z-index:5; left:0; right:0; top:calc(100% + 4px);
+  background:var(--card); border:1.5px solid var(--field-line); border-radius:10px;
+  max-height:300px; overflow-y:auto; margin:0; padding:4px; list-style:none; display:none;
+  box-shadow:0 10px 30px rgba(0,0,0,.18);
+}
+.results.open{display:block}
+.results li button{
+  width:100%; text-align:left; font:inherit; color:var(--ink); background:none; border:0;
+  padding:9px 10px; border-radius:7px; cursor:pointer; display:flex; gap:10px; align-items:center;
+}
+.results li button:hover,.results li button:focus-visible{background:var(--field)}
+.results .tz{margin-left:auto; color:var(--muted); font-size:.85rem}
+.results .none{padding:10px; color:var(--muted)}
+.count{color:var(--muted); font-size:.95rem}
+.flag{font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif}
+
+/* Rejilla de 4 columnas */
+.grid{display:grid; grid-template-columns:repeat(4,1fr); gap:14px}
+@media (max-width:900px){.grid{grid-template-columns:repeat(2,1fr)}}
+@media (max-width:480px){.grid{grid-template-columns:1fr}}
+.card{
+  background:var(--card); border:1px solid var(--line); border-radius:12px;
+  padding:14px 16px 16px; position:relative; text-align:center; min-width:0;
+}
+.card .flag{font-size:2.6rem; line-height:1.1; display:block}
+.card .name{font-size:.9rem; color:var(--muted); margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.card .time{font-size:2.1rem; font-weight:700; font-variant-numeric:tabular-nums; margin:6px 0 2px}
+.card .off{font-size:.8rem; color:var(--muted)}
+.card .day{color:var(--accent); font-weight:600}
+.card .rm{
+  position:absolute; top:6px; right:6px; width:30px; height:30px; border-radius:50%;
+  border:0; background:none; color:var(--muted); font-size:1.2rem; cursor:pointer; line-height:1;
+}
+.card .rm:hover{color:var(--danger); background:var(--field)}
+.empty{
+  grid-column:1/-1; text-align:center; color:var(--muted);
+  border:1.5px dashed var(--line); border-radius:12px; padding:42px 16px;
+}
+.note{margin-top:22px; font-size:.85rem; color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <section class="top" aria-label="Hora de referencia">
+    <h1>Hora de referencia</h1>
+    <label class="field"><span>Huso horario</span>
+      <select id="offset"></select>
+    </label>
+    <div class="field"><span>Hora (24 h)</span>
+      <div class="time-pick">
+        <select id="hh" aria-label="Hora"></select><b>:</b><select id="mm" aria-label="Minutos"></select>
+      </div>
+    </div>
+    <button class="btn ghost" id="now" type="button">Usar hora actual</button>
+  </section>
+
+  <section class="adder" aria-label="Añadir países">
+    <div class="search">
+      <input id="q" type="search" placeholder="Buscar país…" autocomplete="off" aria-label="Buscar país">
+      <ul class="results" id="results"></ul>
+    </div>
+    <span class="count" id="count"></span>
+  </section>
+
+  <section class="grid" id="grid" aria-live="polite"></section>
+
+  <p class="note">Los países con varias zonas horarias usan la de su capital o zona principal. Las horas tienen en cuenta el horario de verano de la fecha de hoy.</p>
+</div>
+
+<script>
+const MAX = 16;
+// Código ISO | Nombre | Zona horaria IANA
+const RAW = `AR|Argentina|America/Argentina/Buenos_Aires
+AU|Australia|Australia/Sydney
+AT|Austria|Europe/Vienna
+BE|Bélgica|Europe/Brussels
+BO|Bolivia|America/La_Paz
+BR|Brasil|America/Sao_Paulo
+BG|Bulgaria|Europe/Sofia
+CA|Canadá|America/Toronto
+CL|Chile|America/Santiago
+CN|China|Asia/Shanghai
+CO|Colombia|America/Bogota
+CR|Costa Rica|America/Costa_Rica
+HR|Croacia|Europe/Zagreb
+CU|Cuba|America/Havana
+CZ|Chequia|Europe/Prague
+DK|Dinamarca|Europe/Copenhagen
+DO|Rep. Dominicana|America/Santo_Domingo
+EC|Ecuador|America/Guayaquil
+EG|Egipto|Africa/Cairo
+SV|El Salvador|America/El_Salvador
+ES|España|Europe/Madrid
+EE|Estonia|Europe/Tallinn
+ET|Etiopía|Africa/Addis_Ababa
+FI|Finlandia|Europe/Helsinki
+FR|Francia|Europe/Paris
+DE|Alemania|Europe/Berlin
+GR|Grecia|Europe/Athens
+GT|Guatemala|America/Guatemala
+HN|Honduras|America/Tegucigalpa
+HK|Hong Kong|Asia/Hong_Kong
+HU|Hungría|Europe/Budapest
+IS|Islandia|Atlantic/Reykjavik
+IN|India|Asia/Kolkata
+ID|Indonesia|Asia/Jakarta
+IR|Irán|Asia/Tehran
+IQ|Irak|Asia/Baghdad
+IE|Irlanda|Europe/Dublin
+IL|Israel|Asia/Jerusalem
+IT|Italia|Europe/Rome
+JP|Japón|Asia/Tokyo
+JO|Jordania|Asia/Amman
+KZ|Kazajistán|Asia/Almaty
+KE|Kenia|Africa/Nairobi
+KR|Corea del Sur|Asia/Seoul
+KW|Kuwait|Asia/Kuwait
+LV|Letonia|Europe/Riga
+LB|Líbano|Asia/Beirut
+LT|Lituania|Europe/Vilnius
+LU|Luxemburgo|Europe/Luxembourg
+MY|Malasia|Asia/Kuala_Lumpur
+MX|México|America/Mexico_City
+MA|Marruecos|Africa/Casablanca
+NL|Países Bajos|Europe/Amsterdam
+NZ|Nueva Zelanda|Pacific/Auckland
+NI|Nicaragua|America/Managua
+NG|Nigeria|Africa/Lagos
+NO|Noruega|Europe/Oslo
+PK|Pakistán|Asia/Karachi
+PA|Panamá|America/Panama
+PY|Paraguay|America/Asuncion
+PE|Perú|America/Lima
+PH|Filipinas|Asia/Manila
+PL|Polonia|Europe/Warsaw
+PT|Portugal|Europe/Lisbon
+PR|Puerto Rico|America/Puerto_Rico
+QA|Catar|Asia/Qatar
+RO|Rumanía|Europe/Bucharest
+RU|Rusia|Europe/Moscow
+SA|Arabia Saudí|Asia/Riyadh
+RS|Serbia|Europe/Belgrade
+SG|Singapur|Asia/Singapore
+SK|Eslovaquia|Europe/Bratislava
+SI|Eslovenia|Europe/Ljubljana
+ZA|Sudáfrica|Africa/Johannesburg
+SE|Suecia|Europe/Stockholm
+CH|Suiza|Europe/Zurich
+TW|Taiwán|Asia/Taipei
+TH|Tailandia|Asia/Bangkok
+TR|Turquía|Europe/Istanbul
+UA|Ucrania|Europe/Kyiv
+AE|Emiratos Árabes Unidos|Asia/Dubai
+GB|Reino Unido|Europe/London
+US|Estados Unidos|America/New_York
+UY|Uruguay|America/Montevideo
+VE|Venezuela|America/Caracas
+VN|Vietnam|Asia/Ho_Chi_Minh
+DZ|Argelia|Africa/Algiers
+TN|Túnez|Africa/Tunis
+GH|Ghana|Africa/Accra
+SN|Senegal|Africa/Dakar
+TZ|Tanzania|Africa/Dar_es_Salaam
+NP|Nepal|Asia/Kathmandu
+BD|Bangladés|Asia/Dhaka
+LK|Sri Lanka|Asia/Colombo
+AF|Afganistán|Asia/Kabul
+UZ|Uzbekistán|Asia/Tashkent
+GE|Georgia|Asia/Tbilisi
+AM|Armenia|Asia/Yerevan
+AZ|Azerbaiyán|Asia/Baku
+BY|Bielorrusia|Europe/Minsk
+MT|Malta|Europe/Malta
+CY|Chipre|Asia/Nicosia
+AL|Albania|Europe/Tirane
+BA|Bosnia y Herzegovina|Europe/Sarajevo
+MK|Macedonia del Norte|Europe/Skopje
+AO|Angola|Africa/Luanda
+MZ|Mozambique|Africa/Maputo
+MM|Myanmar|Asia/Yangon
+KH|Camboya|Asia/Phnom_Penh
+MN|Mongolia|Asia/Ulaanbaatar
+FJ|Fiyi|Pacific/Fiji
+GQ|Guinea Ecuatorial|Africa/Malabo
+CI|Costa de Marfil|Africa/Abidjan
+CM|Camerún|Africa/Douala
+JM|Jamaica|America/Jamaica
+HT|Haití|America/Port-au-Prince
+BS|Bahamas|America/Nassau
+TT|Trinidad y Tobago|America/Port_of_Spain`;
+
+const COUNTRIES = RAW.split("\n").map(l => {
+  const [code, name, tz] = l.split("|");
+  const flag = String.fromCodePoint(...[...code].map(c => 127397 + c.charCodeAt(0)));
+  return {code, name, tz, flag};
+}).sort((a, b) => a.name.localeCompare(b.name, "es"));
+const BY_CODE = Object.fromEntries(COUNTRIES.map(c => [c.code, c]));
+
+const OFFSETS = [-720,-660,-600,-570,-540,-480,-420,-360,-300,-240,-210,-180,-120,-60,0,60,120,180,210,240,270,300,330,345,360,390,420,480,525,540,570,600,630,660,720,765,780,840];
+
+const $ = id => document.getElementById(id);
+const offSel = $("offset"), hhSel = $("hh"), mmSel = $("mm");
+let selected = [];
+
+const pad = n => String(n).padStart(2, "0");
+const norm = s => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+function fmtOffset(min){
+  const sign = min < 0 ? "-" : "+", a = Math.abs(min);
+  const h = Math.floor(a / 60), m = a % 60;
+  return "UTC" + sign + h + (m ? ":" + pad(m) : "");
+}
+
+// Selectores
+OFFSETS.forEach(o => offSel.add(new Option(fmtOffset(o), o)));
+for (let i = 0; i < 24; i++) hhSel.add(new Option(pad(i), i));
+for (let i = 0; i < 60; i++) mmSel.add(new Option(pad(i), i));
+
+function setNow(){
+  const localOff = -new Date().getTimezoneOffset();
+  offSel.value = OFFSETS.includes(localOff) ? localOff : 0;
+  const off = +offSel.value;
+  const d = new Date(Date.now() + off * 60000);
+  hhSel.value = d.getUTCHours();
+  mmSel.value = d.getUTCMinutes();
+  render();
+}
+
+// Desfase (en minutos) de una zona IANA en un instante dado
+function tzOffset(tz, date){
+  const p = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz, hourCycle: "h23", year: "numeric", month: "numeric", day: "numeric",
+    hour: "numeric", minute: "numeric", second: "numeric"
+  }).formatToParts(date).reduce((o, x) => (o[x.type] = +x.value, o), {});
+  const asUTC = Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second);
+  return Math.round((asUTC - Math.floor(date.getTime() / 1000) * 1000) / 60000);
+}
+
+function render(){
+  const off = +offSel.value, h = +hhSel.value, m = +mmSel.value;
+  const today = new Date(Date.now() + off * 60000);
+  const refDay = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
+  const instant = new Date(refDay + (h * 60 + m) * 60000 - off * 60000);
+
+  $("count").textContent = selected.length + " / " + MAX + " países";
+  const grid = $("grid");
+  if (!selected.length){
+    grid.innerHTML = '<div class="empty">Aún no has añadido países. Usa el buscador para empezar.</div>';
+  } else {
+    grid.innerHTML = selected.map(code => {
+      const c = BY_CODE[code];
+      const o = tzOffset(c.tz, instant);
+      const local = new Date(instant.getTime() + o * 60000);
+      const localDay = Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate());
+      const diff = Math.round((localDay - refDay) / 86400000);
+      const dayTxt = diff === 0 ? "" : ' · <span class="day">' + (diff > 0 ? "+" + diff + " día" + (diff > 1 ? "s" : "") : diff + " día" + (diff < -1 ? "s" : "")) + "</span>";
+      return '<article class="card" title="' + c.tz + '">' +
+        '<button class="rm" type="button" data-rm="' + c.code + '" aria-label="Quitar ' + c.name + '">×</button>' +
+        '<span class="flag">' + c.flag + '</span>' +
+        '<div class="name">' + c.name + '</div>' +
+        '<div class="time">' + pad(local.getUTCHours()) + ":" + pad(local.getUTCMinutes()) + '</div>' +
+        '<div class="off">' + fmtOffset(o) + dayTxt + '</div></article>';
+    }).join("");
+  }
+  $("q").disabled = selected.length >= MAX;
+  $("q").placeholder = selected.length >= MAX ? "Máximo de 16 países alcanzado" : "Buscar país…";
+  try { localStorage.setItem("tz-selected", JSON.stringify(selected)); } catch(e){}
+  renderResults();
+}
+
+// Buscador
+const q = $("q"), results = $("results");
+function renderResults(){
+  const term = norm(q.value.trim());
+  if (!term && document.activeElement !== q){ results.classList.remove("open"); return; }
+  const list = COUNTRIES.filter(c => !selected.includes(c.code) && norm(c.name).includes(term));
+  results.innerHTML = list.length
+    ? list.map(c => '<li><button type="button" data-add="' + c.code + '"><span class="flag">' + c.flag + '</span>' + c.name +
+        '<span class="tz">' + fmtOffset(tzOffset(c.tz, new Date())) + '</span></button></li>').join("")
+    : '<li class="none">Sin resultados</li>';
+  results.classList.toggle("open", selected.length < MAX);
+}
+q.addEventListener("input", renderResults);
+q.addEventListener("focus", renderResults);
+document.addEventListener("click", e => {
+  if (!e.target.closest(".search")) results.classList.remove("open");
+});
+results.addEventListener("click", e => {
+  const b = e.target.closest("[data-add]");
+  if (!b || selected.length >= MAX) return;
+  selected.push(b.dataset.add);
+  q.value = "";
+  render();
+  results.classList.remove("open");
+});
+$("grid").addEventListener("click", e => {
+  const b = e.target.closest("[data-rm]");
+  if (!b) return;
+  selected = selected.filter(c => c !== b.dataset.rm);
+  render();
+});
+q.addEventListener("keydown", e => {
+  if (e.key === "Enter"){ const f = results.querySelector("[data-add]"); if (f) f.click(); }
+  if (e.key === "Escape") results.classList.remove("open");
+});
+
+[offSel, hhSel, mmSel].forEach(el => el.addEventListener("change", render));
+$("now").addEventListener("click", setNow);
+
+try {
+  const s = JSON.parse(localStorage.getItem("tz-selected") || "[]");
+  selected = s.filter(c => BY_CODE[c]).slice(0, MAX);
+} catch(e){}
+setNow();
+</script>
+</body>
+</html>
